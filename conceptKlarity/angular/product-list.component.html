@@ -1,0 +1,14 @@
+<div class="product-list">
+  <h3>Products</h3>
+  <div *ngIf="loading">Loading...</div>
+  <div *ngIf="error" class="error">{{ error }}</div>
+  <ul>
+    <li *ngFor="let p of items">{{ p.name }} — {{ p.qty }}</li>
+  </ul>
+
+  <div class="new-item">
+    <input [(ngModel)]="newName" placeholder="Name" />
+    <input type="number" [(ngModel)]="newQty" />
+    <button (click)="add()">Add</button>
+  </div>
+</div>
