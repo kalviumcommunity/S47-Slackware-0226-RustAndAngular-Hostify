@@ -1,0 +1,12 @@
+<div class="card">
+  <h4>{{ productName }}</h4>
+  <p class="price">₹{{ price }}</p>
+
+  <div class="actions">
+    <button (click)="addToCart()" [disabled]="inCart">{{ inCart ? 'In Cart' : 'Add to Cart' }}</button>
+    <button class="fav" (click)="toggleFavorite()">{{ favorite ? '★' : '☆' }}</button>
+  </div>
+
+  <p *ngIf="inCart" class="added">Added to cart!</p>
+  <p *ngIf="favorite" class="fav-note">Marked as favorite</p>
+</div>

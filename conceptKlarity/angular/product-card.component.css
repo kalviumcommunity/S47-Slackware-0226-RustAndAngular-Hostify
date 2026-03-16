@@ -1,0 +1,45 @@
+.card {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  width: 220px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  font-family: Arial, sans-serif;
+}
+
+.price {
+  font-weight: 700;
+  margin: 6px 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+button {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.fav {
+  background: transparent;
+  font-size: 18px;
+}
+
+.added {
+  color: #0a7d00;
+  margin-top: 8px;
+}
+
+.fav-note {
+  color: #b36b00;
+}
