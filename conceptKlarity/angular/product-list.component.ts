@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ProductService } from './product.service';
-import { Product } from './src/app/models/product.model';
+import { Product, CreateProductRequest } from './src/app/models/product.model';
 import { StateService } from './services/state.service';
 import { Subscription } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -39,7 +39,8 @@ export class ProductListComponent implements OnInit {
   add(): void {
     if (!this.newName) { this.error = 'Name required'; return; }
     this.submitting = true;
-    this.svc.createProduct({ name: this.newName, price: this.newPrice, description: this.newDescription || undefined }).subscribe({
+    const payload: CreateProductRequest = { name: this.newName, price: this.newPrice, description: this.newDescription || undefined };
+    this.svc.createProduct(payload).subscribe({
       next: (item) => {
         // update shared state instead of local push
         const current = this.state.getItemsSnapshot();
