@@ -5,7 +5,7 @@
   <div *ngIf="loading">Loading...</div>
   <div *ngIf="error" class="error">{{ error }}</div>
   <ul>
-    <li *ngFor="let p of items">{{ p.name }} — ${{ p.price }} <span *ngIf="p.description">— {{ p.description }}</span></li>
+    <li *ngFor="let p of items">{{ p.name }} — ${{ p.price }} <small>({{ p.status }})</small> <span *ngIf="p.description">— {{ p.description }}</span></li>
   </ul>
 
   <div class="new-item">

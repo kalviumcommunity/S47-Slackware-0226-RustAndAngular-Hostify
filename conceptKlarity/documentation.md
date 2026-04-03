@@ -1,58 +1,245 @@
-# Forms PR Documentation
+# Database Integration — PostgreSQL + SQLx (this commit)
 
-This PR adds two form examples to the Angular scaffold:
+This commit adds PostgreSQL integration using `sqlx`, implements a connection pool, runs a simple startup migration, and provides a typed POST/GET API for `products` that maps database rows to typed Rust structs.
 
-- `TemplateFormComponent` — a template-driven form using `ngModel` and built-in validation attributes.
-- `ReactiveFormComponent` — a reactive form using `FormGroup`, `FormControl`, and `Validators`.
+Summary of changes
 
-Why both?
+- Added `sqlx` and `anyhow` to `rust-backend/Cargo.toml`.
+- Created a connection pool from the `DATABASE_URL` environment variable in `src/main.rs`.
+- Added embedded SQLx migrations and run them at startup using `sqlx::migrate!()`.
+- Implemented `POST /api/products` (create) and `GET /api/products` (list) backed by the database in `handlers/products.rs` and `routes/products.rs`.
+- Added typed request/response DTOs (`CreateProductRequest`, `ProductResponse`) and derived `serde` and `sqlx::FromRow` where appropriate.
 
-Template-driven forms are simple and declarative — they work well for straightforward forms and quick prototyping. Reactive forms provide explicit control over the form model, easier unit testing, and better scalability for complex validation logic.
+Why PostgreSQL + SQLx
 
-Validation implemented
+- PostgreSQL is an reliable relational database suitable for structured data.
+- `sqlx` is an async first Rust library for talking with SQL databases. It provides safe bindings, support for connection pools, and works well with Actix Web.
 
-- Required fields: both approaches use `required`.
-- Minimum length: the `name` field enforces `minlength=3` (template) and `Validators.minLength(3)` (reactive).
-- Email format: template uses `type="email"` (Angular validates), reactive uses `Validators.email`.
+Configuration & environment
 
-Form state and submissions
-
-- Template-driven: the component method receives an `NgForm` instance on submit. Access values with `form.value` and validity with `form.valid`.
-- Reactive: the component uses `this.form.value` to access current values and `this.form.valid` to check validity; `valueChanges` and `statusChanges` are observed to react to updates.
-
-Reusability and design
-
-- Components are self-contained and declared in `AppModule`. They avoid hardcoded logic and expose clear interfaces (form values on submit).
-- Validation rules are defined declaratively (template) or centrally in the `FormGroup` (reactive), making it easy to extract or reuse the control configuration.
-
-How Angular tracks and updates form state
-
-Angular's change detection system runs after DOM events; both template-driven and reactive forms update the underlying model on user input and mark controls as `dirty`, `touched`, and `pristine`. Reactive forms also expose `valueChanges` and `statusChanges` Observables for programmatic observation.
-
-Files added
-
-- `conceptKlarity/angular/template-form.component.*`
-- `conceptKlarity/angular/reactive-form.component.*`
-- `conceptKlarity/documentation.md` (this file)
-
-Run locally
+- The database connection is read from the `DATABASE_URL` environment variable. It is NOT hard-coded.
+- Example `DATABASE_URL` (Postgres):
 
 ```bash
-cd conceptKlarity/angular
-npm install
-npm start    # or ng serve
+export DATABASE_URL="postgres://dbuser:dbpass@localhost:5432/conceptklarity"
 ```
 
-Run tests:
+- The server reads this variable on startup and fails early if not set.
+
+Connection pool & startup
+
+- `src/main.rs` creates a pool with `sqlx::postgres::PgPoolOptions::new().max_connections(5).connect(&database_url).await`.
+After obtaining the pool we run the embedded migrations (from `rust-backend/migrations/`) using `sqlx::migrate!()` which applies the checked SQL migration files included in the repository.
+
+The checked migration used in this commit is `rust-backend/migrations/0001_create_products.sql` which creates the `products` table:
+
+```sql
+CREATE TABLE IF NOT EXISTS products (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    price DOUBLE PRECISION NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'available',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+```
+
+- If the pool cannot be established or the migration fails the server logs the error and exits cleanly (no panics or unwraps).
+
+Implemented queries
+
+- `POST /api/products` — accepts JSON request body matching `CreateProductRequest` and executes a parameterized `INSERT ... RETURNING ...` query, safely binding parameters to avoid SQL injection. The handler returns `201 Created` with the inserted row as `ProductResponse`.
+- `GET /api/products` — executes `SELECT id, name, price, description, status FROM products` and returns an array of `ProductResponse`.
+
+Example Rust types used
+
+```rust
+#[derive(Deserialize)]
+pub struct CreateProductRequest {
+        pub name: String,
+        pub price: f64,
+        pub description: Option<String>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct ProductResponse {
+        pub id: i32,
+        pub name: String,
+        pub price: f64,
+        pub description: Option<String>,
+        pub status: ProductStatus,
+}
+```
+
+Error handling
+
+- The handlers use `match` on the `sqlx` futures; on database errors they log the error and return `500 Internal Server Error`.
+- The `web::Json<T>` extractor automatically rejects invalid JSON and returns `400 Bad Request` for invalid request payloads, so handler code does not need manual JSON parsing.
+- Startup errors (DB connection or migration failures) are logged and cause the app to exit with a clear error message.
+
+Testing the endpoints locally
+
+1. Create a PostgreSQL database and a user (example using `psql`):
+
+```sql
+CREATE DATABASE conceptklarity;
+CREATE USER demo WITH PASSWORD 'demo';
+GRANT ALL PRIVILEGES ON DATABASE conceptklarity TO demo;
+```
+
+2. Export `DATABASE_URL`:
 
 ```bash
-ng test
+export DATABASE_URL="postgres://demo:demo@localhost:5432/conceptklarity"
 ```
 
-Build:
+3. Run the backend:
 
 ```bash
-ng build
+cd conceptKlarity/rust-backend
+cargo run
 ```
 
-If you want, I can commit these changes to a branch and open the PR, or add an Angular proxy and CORS configuration for backend integration.
+4. Create a product (valid request):
+
+```bash
+curl -i -X POST http://localhost:8080/api/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"New Product","price":12.5,"description":"demo"}'
+```
+
+5. Fetch products:
+
+```bash
+curl http://localhost:8080/api/products
+```
+
+7. Fetch a single product by id:
+
+```bash
+curl http://localhost:8080/api/products/1
+```
+
+8. Update a product (PUT, full update):
+
+```bash
+curl -i -X PUT http://localhost:8080/api/products/1 \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Updated","price":15.0,"description":"updated","status":"available"}'
+```
+
+Expected: `200 OK` with the updated `ProductResponse`.
+
+9. Delete a product:
+
+```bash
+curl -i -X DELETE http://localhost:8080/api/products/1
+```
+
+Expected: `204 No Content` on success, `404 Not Found` if the id does not exist.
+
+6. Invalid payload (example):
+
+```bash
+curl -i -X POST http://localhost:8080/api/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"MissingPrice"}'
+```
+
+This will result in `400 Bad Request` because `price` is missing and `web::Json<CreateProductRequest>` fails to deserialize.
+
+Notes on security and SQL injection
+
+- All queries use parameter binding (via `.bind()`), preventing SQL injection.
+
+Why SQLx was chosen
+
+- `sqlx` is async, integrates with tokio/Actix, supports connection pools, and provides both runtime and compile-time checked queries. It is a pragmatic choice for Rust web backends.
+
+Next steps (recommended)
+
+- Add a migration tool (e.g., `sqlx migrate` or `refinery`) and check-in migration files under `rust-backend/migrations/`.
+- Add more robust error responses and structured error types for the API.
+- Add unit/integration tests for handlers using a test database.
+
+AI review & applied improvements
+
+- Replaced ad-hoc error printing with `log::error!` and ensured `env_logger` is initialized.
+- Switched `fetch_one` where appropriate to `fetch_optional` and handled `None` -> `404 Not Found`.
+- Removed `sqlx::FromRow` derive on `ProductResponse` and perform explicit tuple -> struct conversion with validation of the `status` field.
+- Made `ProductStatus::from_str` return `Option<ProductStatus>` so invalid DB values are surfaced instead of silently defaulting.
+
+These changes were applied after an AI review step to improve error handling, SQLx usage, and robustness of the CRUD handlers.
+
+
+---
+
+## Typed Request/Response Models & Endpoint
+
+We added a typed request and response model and a working POST endpoint to demonstrate Serde-based (de)serialization and typed APIs.
+
+Models added (Rust)
+
+```rust
+// request
+#[derive(Deserialize, Debug)]
+pub struct CreateProductRequest {
+        pub name: String,
+        pub price: f64,
+        pub description: Option<String>,
+}
+
+// response
+#[derive(Serialize, Debug)]
+pub struct ProductResponse {
+        pub id: i32,
+        pub name: String,
+        pub price: f64,
+        pub description: Option<String>,
+        pub status: ProductStatus,
+}
+```
+
+Endpoint implemented
+
+- POST `/api/products` — accepts JSON matching `CreateProductRequest` and returns `201 Created` with JSON `ProductResponse`.
+- The handler uses `web::Json<CreateProductRequest>` extractor; Actix + Serde automatically deserializes the request body into the typed struct. Invalid JSON or missing required fields result in a `400 Bad Request` automatically.
+
+Example handler (simplified):
+
+```rust
+pub async fn create_product(req: web::Json<CreateProductRequest>) -> impl Responder {
+        let payload = req.into_inner();
+        let response = ProductResponse { id: 100, name: payload.name, price: payload.price, description: payload.description, status: ProductStatus::Available };
+        HttpResponse::Created().json(response)
+}
+```
+
+Testing with curl
+
+Send a valid request:
+
+```bash
+curl -i -X POST http://localhost:8080/api/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"New Product","price":12.5,"description":"demo"}'
+```
+
+Expected result: HTTP/1.1 201 Created and JSON body matching `ProductResponse`.
+
+Send invalid JSON (will produce 400):
+
+```bash
+curl -i -X POST http://localhost:8080/api/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"MissingPrice"}'
+```
+
+Why Serde
+
+- `serde` provides safe, performant, and flexible (de)serialization between Rust types and JSON. Using typed structs avoids manual parsing and ensures compile-time guarantees about field types.
+
+Notes on error handling
+
+- The `web::Json` extractor rejects invalid JSON or mismatched types with a 400 response by default. For additional validation (e.g., non-negative price) you can add explicit checks in the handler and return `HttpResponse::BadRequest()` when needed.
+

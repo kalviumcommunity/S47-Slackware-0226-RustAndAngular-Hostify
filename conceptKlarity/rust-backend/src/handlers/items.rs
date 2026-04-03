@@ -1,8 +1,16 @@
 use actix_web::{web, HttpResponse, Responder};
-use crate::models::product::Product;
+use crate::models::product::{Product, ProductStatus};
 
 pub async fn get_items() -> impl Responder {
-    let items = vec![Product { id: 1, name: "Example".to_string(), qty: 5 }];
+    let items = vec![
+        Product {
+            id: 1,
+            name: "Example".to_string(),
+            price: 9.99,
+            description: Some("Sample item".to_string()),
+            status: ProductStatus::Available,
+        }
+    ];
     HttpResponse::Ok().json(items)
 }
 

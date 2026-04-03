@@ -8,38 +8,23 @@ import { DemoCliComponent } from './demo-cli.component';
 import { BindingDemoComponent } from './binding-demo.component';
 import { TemplateFormComponent } from './template-form.component';
 import { ReactiveFormComponent } from './reactive-form.component';
-import { RouterModule, Routes } from '@angular/router';
-import { AppComponent } from './app.component';
-import { HomeComponent } from './home.component';
+import { LoginComponent } from './login.component';
 import { DashboardComponent } from './dashboard.component';
-import { DetailsComponent } from './details.component';
-import { UserFormComponent } from './user-form.component';
+import { AppComponent } from './app.component';
+import { AppRoutingModule } from './app-routing.module';
 
 @NgModule({
   declarations: [
+    AppComponent,
     ProductListComponent,
     DemoCliComponent,
     BindingDemoComponent,
     TemplateFormComponent,
     ReactiveFormComponent,
-    AppComponent,
-    HomeComponent,
-    DashboardComponent,
-    DetailsComponent
+    LoginComponent,
+    DashboardComponent
   ],
-  imports: [
-    BrowserModule,
-    FormsModule,
-    ReactiveFormsModule,
-    HttpClientModule,
-    RouterModule.forRoot([
-      { path: '', component: HomeComponent },
-      { path: 'dashboard', component: DashboardComponent },
-      { path: 'details/:id', component: DetailsComponent },
-      { path: 'user-form', component: UserFormComponent },
-      { path: '**', redirectTo: '' }
-    ])
-  ],
+  imports: [BrowserModule, FormsModule, ReactiveFormsModule, HttpClientModule, AppRoutingModule],
   providers: [],
   bootstrap: [AppComponent]
 })

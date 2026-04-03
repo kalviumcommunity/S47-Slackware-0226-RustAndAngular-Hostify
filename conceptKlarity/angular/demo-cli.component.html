@@ -1,2 +1,5 @@
 <h2>CLI Demo Component</h2>
-<p>This component was generated using Angular CLI.</p>
+<p>Shared items count: {{ count }}</p>
+<ul>
+	<li *ngFor="let p of (items$ | async)">{{ p.name }} — ${{ p.price }}</li>
+</ul>
