@@ -1,0 +1,6 @@
+.card{border:1px solid #e0e0e0;padding:1rem;border-radius:6px;background:#fff}
+.title{font-size:1.05rem;margin:0}
+.subtitle{color:#666;font-size:0.9rem}
+.meta{font-weight:600;margin-top:0.4rem}
+.card-actions{margin-top:0.6rem}
+.notice{color:green;margin-top:0.4rem}

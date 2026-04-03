@@ -1,7 +1,11 @@
 import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { SharedModule } from './shared/shared.module';
 
 @Component({
   selector: 'app-responsive-layout',
+  standalone: true,
+  imports: [CommonModule, SharedModule],
   templateUrl: './responsive-layout.component.html',
   styleUrls: ['./responsive-layout.component.css']
 })

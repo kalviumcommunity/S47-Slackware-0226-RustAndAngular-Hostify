@@ -1,13 +1,3 @@
 <section class="grid">
-  <article class="card" *ngFor="let c of cards">
-    <h3 class="title">{{ c.title }}</h3>
-    <div class="subtitle">{{ c.subtitle }}</div>
-    <div class="meta">₹{{ c.price }}</div>
-
-    <div class="card-actions">
-      <button (click)="addToCart(c)" [disabled]="c.added">{{ c.added ? 'In cart' : 'Add to cart' }}</button>
-    </div>
-
-    <div *ngIf="c.added" class="notice">Added ✓</div>
-  </article>
+  <shared-card *ngFor="let c of cards" [title]="c.title" [subtitle]="c.subtitle" [price]="c.price" [added]="c.added" (add)="addToCart(c)"></shared-card>
 </section>
