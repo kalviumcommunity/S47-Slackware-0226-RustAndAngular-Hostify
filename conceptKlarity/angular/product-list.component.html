@@ -5,12 +5,16 @@
   <div *ngIf="loading">Loading...</div>
   <div *ngIf="error" class="error">{{ error }}</div>
   <ul>
-    <li *ngFor="let p of items">{{ p.name }} — {{ p.qty }}</li>
+    <li *ngFor="let p of items">{{ p.name }} — ${{ p.price }} <span *ngIf="p.description">— {{ p.description }}</span></li>
   </ul>
 
   <div class="new-item">
     <input [(ngModel)]="newName" placeholder="Name" />
-    <input type="number" [(ngModel)]="newQty" />
+    <input type="number" [(ngModel)]="newPrice" placeholder="Price" />
+    <input [(ngModel)]="newDescription" placeholder="Description" />
     <button (click)="add()">Add</button>
   </div>
+
+  <app-template-form></app-template-form>
+  <app-reactive-form></app-reactive-form>
 </div>
