@@ -5,8 +5,8 @@ import { Product } from './src/app/models/product.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
-  private base = '/api/items';
-  constructor(private http: HttpClient) {}
+  private readonly base = '/api/items';
+  constructor(private readonly http: HttpClient) {}
 
   // Returns a strongly-typed Observable of Product[] (demonstrates generics)
   getProducts(): Observable<Product[]> {
