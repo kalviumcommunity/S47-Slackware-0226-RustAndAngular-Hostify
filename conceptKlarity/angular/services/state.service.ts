@@ -32,7 +32,7 @@ export class StateService {
         return null; // edge case: invalid update attempt
       }
       const maxId = items.length ? Math.max(...items.map(i => i.id)) : 0;
-      newItem = { id: maxId + 1, name: p.name, price: p.price, description: p.description ?? '' };
+      newItem = { id: maxId + 1, name: p.name, price: p.price, description: p.description ?? '', status: 'available' };
     }
 
     this.itemsSubject.next([...items, newItem]);

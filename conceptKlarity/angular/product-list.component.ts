@@ -3,6 +3,7 @@ import { ProductService } from './product.service';
 import { Product } from './src/app/models/product.model';
 import { StateService } from './services/state.service';
 import { Subscription } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
   selector: 'app-product-list',
@@ -13,7 +14,8 @@ export class ProductListComponent implements OnInit {
   newName = '';
   newPrice = 0;
   newDescription = '';
-  loading = false;
+  loadingList = false; // for GET
+  submitting = false; // for POST
   error = '';
   private subs: Subscription[] = [];
 
@@ -26,25 +28,34 @@ export class ProductListComponent implements OnInit {
   }
 
   load(): void {
-    this.loading = true;
+    this.loadingList = true;
     this.svc.getProducts().subscribe({
-      next: (data) => { this.state.setItems(data); console.log('Typed products:', data); this.loading = false; },
-      error: () => { this.error = 'Failed to load items'; this.loading = false; }
+      next: (data) => { this.state.setItems(data); console.log('Typed products:', data); this.loadingList = false; },
+      error: (err: HttpErrorResponse) => { this.error = this.formatHttpError(err, 'Failed to load items'); this.loadingList = false; }
     });
   }
 
   add(): void {
     if (!this.newName) { this.error = 'Name required'; return; }
-    this.loading = true;
+    this.submitting = true;
     this.svc.createProduct({ name: this.newName, price: this.newPrice, description: this.newDescription || undefined }).subscribe({
       next: (item) => {
         // update shared state instead of local push
         const current = this.state.getItemsSnapshot();
         this.state.setItems([...current, item]);
-        this.newName = ''; this.newPrice = 0; this.newDescription = ''; this.loading = false;
+        this.newName = ''; this.newPrice = 0; this.newDescription = ''; this.submitting = false; this.error = '';
       },
-      error: () => { this.error = 'Create failed'; this.loading = false; }
+      error: (err: HttpErrorResponse) => { this.error = this.formatHttpError(err, 'Create failed'); this.submitting = false; }
     });
+  }
+
+  private formatHttpError(err: HttpErrorResponse, fallback: string): string {
+    if (!err) return fallback;
+    if (err.status === 0) return 'Network error — cannot reach server';
+    if (err.status === 401 || err.status === 403) return 'Unauthorized — please login';
+    if (err.status === 400) return 'Invalid request (bad input)';
+    if (err.status >= 500) return 'Server error — try again later';
+    return fallback;
   }
 
   ngOnDestroy(): void {

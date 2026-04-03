@@ -9,10 +9,10 @@
   </ul>
 
   <div class="new-item">
-    <input [(ngModel)]="newName" placeholder="Name" />
-    <input type="number" [(ngModel)]="newPrice" placeholder="Price" />
-    <input [(ngModel)]="newDescription" placeholder="Description" />
-    <button (click)="add()">Add</button>
+    <input [(ngModel)]="newName" placeholder="Name" [disabled]="submitting" />
+    <input type="number" [(ngModel)]="newPrice" placeholder="Price" [disabled]="submitting" />
+    <input [(ngModel)]="newDescription" placeholder="Description" [disabled]="submitting" />
+    <button (click)="add()" [disabled]="submitting">Add</button>
   </div>
 
   <app-template-form></app-template-form>
