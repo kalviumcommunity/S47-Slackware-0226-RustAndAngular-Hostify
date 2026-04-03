@@ -13,3 +13,4 @@ sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls", "m
 anyhow = "1.0"
 actix-cors = "0.6"
 jsonwebtoken = "8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }

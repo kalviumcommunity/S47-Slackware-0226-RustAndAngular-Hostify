@@ -489,4 +489,133 @@ npm start
 
 3. Perform an end-to-end create from the app UI or via curl using the typed request shape (see earlier curl examples). The backend will return a typed JSON `ProductResponse`. Verify the UI shows the created product and no runtime type errors occur in the console.
 
+Observable-Based API Handling
+--------------------------------
+
+- **Services return Observables:** `ProductService.getProducts()` and `ProductService.createProduct()` return `Observable<T>` from `HttpClient`. `AuthService.login()` now returns `Observable<boolean>` (no Promises or `firstValueFrom`). See [conceptKlarity/angular/product.service.ts](conceptKlarity/angular/product.service.ts) and [conceptKlarity/angular/services/auth.service.ts](conceptKlarity/angular/services/auth.service.ts).
+- **Components consume via async pipe and single subscriptions:** `ProductListComponent` exposes `items$` from `StateService.items$` and the template uses the `async` pipe to render the list (see [conceptKlarity/angular/product-list.component.html](conceptKlarity/angular/product-list.component.html)). User-initiated actions (login, create) are handled via single subscriptions that complete; manual subscriptions are tracked and unsubscribed in `ngOnDestroy` to avoid leaks.
+- **RxJS operators used:**
+    - `map` in `ProductService.getProducts()` to apply a lightweight transformation (trim names).
+    - `tap` for logging and side-effects (storing token in `AuthService`, clearing errors in components).
+    - `switchMap` in `ProductListComponent.add()` to chain `createProduct()` -> `getProducts()` without nested subscriptions.
+    - `catchError` in component pipelines to catch backend errors and return a safe fallback (`of([])`) while setting a friendly UI error message.
+
+Why these operators:
+
+- `map` is used to transform incoming data shapes (a pure transformation).
+- `tap` is used for side-effects (logging, UI state changes) and does not alter the stream.
+- `switchMap` replaces nested subscribes and ensures the inner request cancels if a new outer emission occurs (useful for user-triggered refreshes).
+- `catchError` centralizes error handling inside the stream, allowing the UI to show a safe fallback without crashing.
+
+Safe subscription patterns
+
+- Use `async` pipe in templates when possible — it subscribes and unsubscribes automatically.
+- For imperative flows (e.g., submit handlers), use `pipe(take(1))` or track subscriptions in a `Subscription` array and unsubscribe in `ngOnDestroy`.
+
+How to test the async behavior locally
+
+1. Start the backend and frontend as described earlier.
+2. Open the app and observe the product list renders via the async pipe.
+3. Trigger intermittent failures (stop the backend) and confirm the UI shows a friendly error (`Network error — cannot reach server`) and does not crash.
+4. Test the login flow — `AuthService.login()` uses `tap` to persist the token and returns `Observable<boolean>`; ensure successful login navigates and failed login shows `Login failed`.
+
+
+**Performance & Async**
+
+- **All handlers are asynchronous:** The product handlers are implemented as async functions so database I/O never blocks the Actix worker threads. See the implementation in [conceptKlarity/rust-backend/src/handlers/products.rs](conceptKlarity/rust-backend/src/handlers/products.rs).
+- **Shared application state:** A single `PgPool` is created once at startup and kept in a shared `AppState` injected via `web::Data` (see [conceptKlarity/rust-backend/src/state.rs](conceptKlarity/rust-backend/src/state.rs) and [conceptKlarity/rust-backend/src/main.rs](conceptKlarity/rust-backend/src/main.rs)). This avoids creating heavy resources per request.
+- **Async-safe cache to reduce redundant work:** We added a small in-memory TTL cache (async `tokio::sync::RwLock`) for the product list to avoid repeated `SELECT` queries on hot endpoints. The cache TTL is short (default 5s) and is invalidated on writes (POST/PUT/DELETE). This is implemented in `AppState` in [conceptKlarity/rust-backend/src/state.rs](conceptKlarity/rust-backend/src/state.rs) and used by the list handler in [conceptKlarity/rust-backend/src/handlers/products.rs](conceptKlarity/rust-backend/src/handlers/products.rs).
+- **Early returns on errors:** Handlers return `actix_web::Result<HttpResponse>` and use `?` to return early on DB or mapping errors; those are mapped to appropriate `5xx` or `4xx` responses with logged errors.
+- **Why async is critical for `list_products` / `create_product`:** both handlers perform network I/O (database queries). Running those operations asynchronously prevents worker threads from blocking and drastically increases throughput under concurrent load. `list_products` benefits especially when many clients poll the list, which is why the in-memory cache reduces DB pressure.
+- **Lightweight middleware & scoped application:** Authentication middleware is kept small (only header validation) and applied only to write routes; it does not perform heavy CPU or I/O work so it has negligible impact on request latency.
+
+How to validate the performance changes locally
+
+1. Start backend with the environment configured (example):
+
+```bash
+export DATABASE_URL="postgres://demo:demo@localhost:5432/conceptclarity"
+export AUTH_TOKEN="devtoken123"
+cargo run --manifest-path conceptKlarity/rust-backend/Cargo.toml
+```
+
+2. Warm the cache: call the list endpoint a first time (this populates the in-memory cache):
+
+```bash
+curl http://localhost:8080/api/products
+```
+
+3. Immediately call the list endpoint again; the second call should be served from the in-memory cache (observe reduced DB activity in the backend logs):
+
+```bash
+curl http://localhost:8080/api/products
+```
+
+4. Perform a write (create a product); this invalidates the cache and forces subsequent reads to hit the DB again:
+
+```bash
+curl -i -X POST http://localhost:8080/api/products \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer devtoken123" \
+    -d '{"name":"Cache Bust","price":3.14}'
+```
+
+5. Re-run the list call; it will reflect the new product and repopulate the cache.
+
+Notes on design trade-offs
+
+- The in-memory cache reduces redundant DB queries for read-heavy endpoints at the cost of potential short-lived staleness (TTL). Invalidating on writes keeps consistency for most flows.
+- Using `tokio::sync::RwLock` avoids blocking executor threads; avoid `std::sync::RwLock` which can block and hurt async performance.
+- For production or multi-instance deployments, replace the in-memory cache with a centralized cache (Redis) so all instances share cached data.
+
+
+Docker image & multi-stage build
+-------------------------------
+
+I added a multi-stage `Dockerfile` at [conceptKlarity/rust-backend/Dockerfile](conceptKlarity/rust-backend/Dockerfile) to produce a minimal, production-focused image. Key points:
+
+- **Why multi-stage builds:** multi-stage builds let us compile the Rust binary using the full Rust toolchain in a build stage and then copy only the compiled artifact into a small runtime image. This keeps the final image free of the Rust compiler, Cargo, or source code and minimizes attack surface and image size.
+
+- **What each stage does:**
+    - **builder:** `rust:1.71` image used to compile the application in release mode. The stage caches dependencies by copying `Cargo.toml` first, installs native build dependencies (OpenSSL, pkg-config, binutils) only in the builder, builds `target/release/rust_backend_mvp`, and strips debugging symbols.
+    - **runtime:** `debian:bullseye-slim` image containing only CA certs and a non-root user; the compiled binary is copied from the builder. No cargo or Rust toolchain is present in this stage.
+
+- **Optimizations applied:**
+    - Layer caching for Cargo dependencies (copy `Cargo.toml` first) speeds rebuilds.
+    - `strip` reduces binary size.
+    - Final image contains only the runtime binary and CA certs; no source or build tools remain.
+
+How to build and run locally
+
+From the repository root (build context is the `rust-backend` folder):
+
+```bash
+# build the docker image (context is the rust-backend folder)
+docker build -t conceptklarity/rust-backend:latest ./conceptKlarity/rust-backend
+
+# run the container (set DB and secret env vars at runtime; do NOT hardcode secrets in the Dockerfile)
+docker run --rm -p 8080:8080 \
+    -e DATABASE_URL="postgres://demo:demo@host.docker.internal:5432/conceptclarity" \
+    -e AUTH_TOKEN="devtoken123" \
+    -e JWT_SECRET="replace-with-secure-secret" \
+    conceptklarity/rust-backend:latest
+```
+
+Notes on runtime configuration
+
+- The server reads configuration from environment variables at startup (see `config::get_*` helpers). The `PORT` environment variable controls which port the server binds to (default `8080`).
+- **Do not** bake secrets (JWT secret, DB passwords) into the image. Provide them via `docker run -e ...`, Docker Compose, or your orchestration layer.
+
+AI review & improvements applied
+--------------------------------
+
+I ran an internal AI review focused on Docker build ergonomics and applied the following improvements:
+
+- Added dependency-caching pattern (copy `Cargo.toml` first) so rebuilds reuse previously downloaded crates.
+- Installed native build dependencies only in the builder stage (not in final image) so final image remains minimal.
+- Stripped the release binary to reduce size.
+
+These changes are visible in the `Dockerfile` and reduce rebuild time and final image footprint while keeping the build reproducible.
+
+
 
