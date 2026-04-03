@@ -1,15 +1,17 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::{get, post}, Json, Router};
+use axum::{extract::{State, Query}, http::StatusCode, response::IntoResponse, routing::{get, post}, Json, Router};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sqlx::PgPool;
 use std::{env, net::SocketAddr, sync::{Arc, Mutex}};
 
 #[derive(Clone)]
 struct AppState {
     products: Arc<Mutex<Vec<Product>>>,
+    pool: Option<PgPool>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, sqlx::FromRow)]
 struct Product {
     id: u64,
     name: String,
@@ -60,6 +62,36 @@ async fn list_products(State(state): State<AppState>) -> Result<Json<Vec<Product
     Ok(Json(guard.clone()))
 }
 
+#[derive(Deserialize)]
+struct QueryParams {
+    page: Option<u32>,
+    limit: Option<u32>,
+    name: Option<String>,
+}
+
+// DB-backed listing with pagination and text filtering
+async fn list_products_db(State(state): State<AppState>, Query(params): Query<QueryParams>) -> Result<Json<Vec<Product>>, ApiError> {
+    let pool = state.pool.as_ref().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("database not configured")))?;
+
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(10).clamp(1, 100);
+    let offset = ((page - 1) as i64) * (limit as i64);
+
+    // Use parameterized query to avoid SQL injection and to use typed arguments
+    let name_filter = params.name.clone();
+    let rows = sqlx::query_as::<_, Product>(
+        "SELECT id, name, price, description FROM products WHERE ($1::text IS NULL OR name ILIKE '%' || $1 || '%') ORDER BY id LIMIT $2 OFFSET $3"
+    )
+    .bind(name_filter)
+    .bind(limit as i64)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Internal(anyhow::anyhow!("db query failed: {}", e)))?;
+
+    Ok(Json(rows))
+}
+
 async fn create_product(State(state): State<AppState>, Json(payload): Json<CreateProduct>) -> Result<(StatusCode, Json<Product>), ApiError> {
     // Validate input using Result / Option instead of panics
     if payload.name.trim().is_empty() {
@@ -88,14 +120,24 @@ async fn main() -> Result<()> {
     let port = read_port_from_env().context("reading port failed")?;
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
+    // attempt to read DATABASE_URL and connect, but do not fail if not present
+    let pool = match env::var("DATABASE_URL") {
+        Ok(url) => {
+            let p = PgPool::connect(&url).await.context("failed to connect to database")?;
+            Some(p)
+        }
+        Err(_) => None,
+    };
+
     let state = AppState { products: Arc::new(Mutex::new(vec![
         Product { id: 1, name: "Wireless Mouse".into(), price: 899, description: Some("Ergonomic".into()) },
         Product { id: 2, name: "Mechanical Keyboard".into(), price: 3499, description: Some("RGB".into()) },
-    ])) };
+    ])), pool };
 
     let app = Router::new()
         .route("/health", get(health))
         .route("/products", get(list_products).post(create_product))
+        .route("/products-db", get(list_products_db))
         .with_state(state);
 
     println!("Listening on http://{}", addr);
