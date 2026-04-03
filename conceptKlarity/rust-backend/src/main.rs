@@ -2,8 +2,11 @@ mod routes;
 mod handlers;
 mod models;
 mod config;
+mod middleware;
 
-use actix_web::{App, HttpServer, web};
+use actix_web::{App, HttpServer, web, middleware::Logger};
+use actix_web::http::header;
+use actix_cors::Cors;
 use sqlx::postgres::PgPoolOptions;
 
 use std::env;
@@ -23,19 +26,29 @@ async fn main() -> std::io::Result<()> {
         .connect(&database_url)
         .await
         .map_err(|e| {
-            eprintln!("Failed to connect to database: {}", e);
+            log::error!("Failed to connect to database: {}", e);
             std::io::Error::new(std::io::ErrorKind::Other, "Database connection failed")
         })?;
 
     // Run embedded migrations from `rust-backend/migrations/`
     // This requires the `migrate` feature for `sqlx` (enabled in Cargo.toml).
     if let Err(e) = sqlx::migrate!().run(&pool).await {
-        eprintln!("Failed to run database migrations: {}", e);
+        log::error!("Failed to run database migrations: {}", e);
         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Migration failed"));
     }
 
     HttpServer::new(move || {
         App::new()
+            // CORS for Angular dev server
+            .wrap(
+                Cors::default()
+                    .allowed_origin("http://localhost:4200")
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+                    .allowed_headers(vec![header::CONTENT_TYPE, header::AUTHORIZATION])
+                    .supports_credentials()
+                    .max_age(3600),
+            )
+            .wrap(Logger::default())
             .app_data(web::Data::new(pool.clone()))
             .configure(routes::items::configure)
             .configure(routes::products::configure)

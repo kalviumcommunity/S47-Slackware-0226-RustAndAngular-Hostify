@@ -32,6 +32,11 @@ Error handling
 - DB errors are logged (`log::error!`) and return `500 Internal Server Error`.
 - Invalid DB data for `status` values is detected (parsing returns `None`) and surfaced as `500` to avoid silent defaults.
 
+Security / Middleware / CORS
+- **AuthMiddleware** (`rust-backend/src/middleware/auth.rs`) protects write routes and checks `Authorization: Bearer <token>` against `AUTH_TOKEN` (default `devtoken123`). Missing/invalid credentials return `401` with a small JSON error.
+- **CORS** is configured in `main.rs` to allow `http://localhost:4200`, methods `GET,POST,PUT,DELETE,OPTIONS`, and headers `Content-Type` and `Authorization` so the Angular frontend can call protected endpoints with Bearer tokens.
+
+
 How to run locally
 1. Start Postgres and create database/user:
 

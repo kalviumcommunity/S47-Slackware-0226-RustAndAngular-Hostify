@@ -162,6 +162,80 @@ Next steps (recommended)
 - Add more robust error responses and structured error types for the API.
 - Add unit/integration tests for handlers using a test database.
 
+Security: Middleware, CORS, and Authentication
+--------------------------------------------
+
+Middleware implemented
+
+- **AuthMiddleware** (`rust-backend/src/middleware/auth.rs`): enforces header-based auth for protected routes. It checks `Authorization: Bearer <token>` against the `AUTH_TOKEN` environment variable (defaults to `devtoken123` for local dev). Missing or invalid credentials return `401 Unauthorized` with a JSON body `{ "error": "Unauthorized" }`. The middleware runs before handlers and prevents handlers from containing auth logic.
+- **Logger**: `env_logger` + `actix_web::middleware::Logger` logs requests centrally (initialized in `main.rs`).
+
+CORS configuration
+
+- CORS is configured in `main.rs` using `actix-cors::Cors`. The allowed origin for development is explicitly set to `http://localhost:4200` (Angular dev server).
+- Allowed methods: `GET, POST, PUT, DELETE, OPTIONS`.
+- Allowed headers: `Content-Type` and `Authorization` (so the browser can send the Bearer token).
+- Credentials (cookies/authorization headers) are supported (`supports_credentials()`), and preflight requests are permitted.
+
+Protected vs Public routes
+
+- Public (no auth required): `GET /api/products` (list) and `GET /api/products/{id}` (read single).
+- Protected (auth required via `AuthMiddleware`): `POST /api/products`, `PUT /api/products/{id}`, `DELETE /api/products/{id}`.
+
+How authentication is checked
+
+- The middleware extracts the `Authorization` header and expects the format `Bearer <token>`.
+- The token is compared against `AUTH_TOKEN` environment variable (set it locally or in CI). If the header is missing or the token does not match, the middleware responds with `401` and a small JSON error — no internal details are leaked.
+
+How to test authorized vs unauthorized (curl)
+
+Set the token for local testing (optional - default is `devtoken123`):
+
+```bash
+export AUTH_TOKEN="devtoken123"
+```
+
+Unauthenticated (should return 401):
+
+```bash
+curl -i -X POST http://localhost:8080/api/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"X","price":1.0}'
+```
+
+Authenticated (succeeds):
+
+```bash
+curl -i -X POST http://localhost:8080/api/products \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer devtoken123" \
+    -d '{"name":"X","price":1.0}'
+```
+
+Response formats and safety
+
+- Unauthorized requests: `401 Unauthorized` with JSON `{ "error": "Unauthorized" }`.
+- Not found: `404 Not Found` with a short message (e.g. `Product not found`).
+- Internal errors: logged on the server (`log::error!`) and return `500` with no internal stack traces in the response.
+
+Case study: CORS, middleware, and authentication (for the video)
+
+Scenario: your Angular frontend is deployed on a different domain than the Rust backend (cross-origin). By default browsers block cross-origin requests unless the server explicitly allows them. This is enforced by the browser, not the server — the server must opt-in by returning appropriate CORS headers.
+
+How CORS blocks requests by default
+
+- Browsers implement the Same-Origin Policy. When a script on `https://frontend.example` attempts to call `https://api.example`, the browser checks the response's CORS headers; if the server does not include the proper `Access-Control-Allow-Origin` header, the browser blocks the response.
+
+How the configured CORS allows safe cross-origin access
+
+- Our server sets `Access-Control-Allow-Origin: http://localhost:4200` (or the configured frontend origin), allows the required methods, and permits the `Authorization` header. For requests that include credentials or special headers, browsers perform a preflight `OPTIONS` request; the server's CORS policy must accept it (we allow `OPTIONS`). This enables the browser to send the actual request and the Authorization header safely.
+
+How middleware verifies authentication and prevents unauthorized access
+
+- The `AuthMiddleware` executes before any protected handler. It blocks requests lacking a valid `Authorization: Bearer <token>` header and returns `401`, so the handler never runs and cannot accidentally process unauthorized requests.
+- This pattern centralizes auth checks, keeps handlers focused on business logic, and makes auditing/changes easier.
+
+
 AI review & applied improvements
 
 - Replaced ad-hoc error printing with `log::error!` and ensured `env_logger` is initialized.
