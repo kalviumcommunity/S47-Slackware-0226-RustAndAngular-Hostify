@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::PgPool;
 use std::{env, net::SocketAddr, sync::{Arc, Mutex}};
+use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Clone)]
 struct AppState {
@@ -134,11 +135,17 @@ async fn main() -> Result<()> {
         Product { id: 2, name: "Mechanical Keyboard".into(), price: 3499, description: Some("RGB".into()) },
     ])), pool };
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let app = Router::new()
         .route("/health", get(health))
         .route("/products", get(list_products).post(create_product))
         .route("/products-db", get(list_products_db))
-        .with_state(state);
+        .with_state(state)
+        .layer(cors);
 
     println!("Listening on http://{}", addr);
     axum::Server::bind(&addr).serve(app.into_make_service()).await.context("server failed")?;
