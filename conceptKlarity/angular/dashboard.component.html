@@ -1,0 +1,5 @@
+<div class="dashboard">
+  <h2>Dashboard (Protected)</h2>
+  <p *ngIf="isLoggedIn">You are logged in. Token: {{ token }}</p>
+  <button (click)="logout()">Logout</button>
+</div>

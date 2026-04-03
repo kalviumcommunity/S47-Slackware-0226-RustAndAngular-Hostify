@@ -1,0 +1,9 @@
+<div class="login">
+  <h2>Login</h2>
+  <div *ngIf="error" class="error">{{ error }}</div>
+  <form (ngSubmit)="submit()">
+    <input name="username" [(ngModel)]="username" placeholder="Username" required />
+    <input name="password" [(ngModel)]="password" placeholder="Password" type="password" required />
+    <button type="submit" [disabled]="loading">Login</button>
+  </form>
+</div>

@@ -50,6 +50,22 @@ Service & shared state
 	- Empty data state: the `BehaviorSubject` is initialized with an empty array so subscribers always receive a defined array (avoids `null` checks in templates).
 	- API simulation: `simulateApiLoad(shouldFail)` demonstrates how the service can simulate an API error (returns a rejected Promise when `shouldFail` is true) and how callers can handle it.
 
+Routing, Authentication & Guard
+
+- **Routes (simple map):**
+	- `/products` — public, `ProductListComponent` (default redirect)
+	- `/login` — public, `LoginComponent` (used to sign in)
+	- `/dashboard` — protected, `DashboardComponent` (requires authentication via `AuthGuard`)
+
+- **How the guard works:**
+	- `AuthGuard` implements `CanActivate`. Before navigation to a protected route the guard checks `AuthService.isLoggedIn()`.
+	- If authenticated, navigation proceeds. If not, the guard returns a `UrlTree` redirecting to `/login` with a `returnUrl` query parameter so the app can navigate back after successful login.
+
+- **How authentication state is checked:**
+	- `AuthService` stores a token in `localStorage` and exposes a `BehaviorSubject` (`isLoggedIn$`) for reactive subscribers and `isLoggedIn()` for synchronous checks.
+	- Components and the guard use `isLoggedIn()` or subscribe to `isLoggedIn$` to react to changes.
+
+
 
 Run locally
 

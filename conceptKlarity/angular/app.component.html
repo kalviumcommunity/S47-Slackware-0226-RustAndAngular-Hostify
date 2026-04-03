@@ -1,0 +1,7 @@
+<nav>
+  <a routerLink="/products">Products</a> |
+  <a routerLink="/dashboard">Dashboard</a> |
+  <a routerLink="/login" *ngIf="!isLoggedIn">Login</a>
+  <button *ngIf="isLoggedIn" (click)="logout()">Logout</button>
+</nav>
+<router-outlet></router-outlet>
