@@ -1,9 +1,7 @@
-<nav class="nav">
-  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Home</a>
-  <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
-  <a routerLink="/user-form" routerLinkActive="active">User Form</a>
+<nav>
+  <a routerLink="/products">Products</a> |
+  <a routerLink="/dashboard">Dashboard</a> |
+  <a routerLink="/login" *ngIf="!isLoggedIn">Login</a>
+  <button *ngIf="isLoggedIn" (click)="logout()">Logout</button>
 </nav>
-
-<main>
-  <router-outlet></router-outlet>
-</main>
+<router-outlet></router-outlet>

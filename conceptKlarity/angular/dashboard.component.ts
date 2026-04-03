@@ -1,31 +1,23 @@
 import { Component } from '@angular/core';
+import { AuthService } from './services/auth.service';
 import { Router } from '@angular/router';
-import { RouteDataService } from './route-data.service';
 
 @Component({
   selector: 'app-dashboard',
-  template: `
-  <h2>Dashboard</h2>
-  <ul>
-    <li *ngFor="let p of products; let i = index">
-      {{ p.name }} — ₹{{ p.price }}
-      <button (click)="viewDetails(p.id)">View</button>
-    </li>
-  </ul>
-  `
+  templateUrl: './dashboard.component.html',
+  styleUrls: ['./dashboard.component.css']
 })
 export class DashboardComponent {
-  products = [
-    { id: 1, name: 'Wireless Mouse', price: 899 },
-    { id: 2, name: 'Mechanical Keyboard', price: 3499 },
-    { id: 3, name: 'USB-C Hub', price: 1299 }
-  ];
+  isLoggedIn = false;
+  token: string | null = null;
 
-  constructor(private router: Router, private routeData: RouteDataService) {}
+  constructor(private auth: AuthService, private router: Router) {
+    this.isLoggedIn = this.auth.isLoggedIn();
+    this.token = this.auth.getToken();
+  }
 
-  viewDetails(id: number): void {
-    // store selected id in service and navigate with route param
-    this.routeData.setSelectedId(id);
-    this.router.navigate(['/details', id]);
+  logout(): void {
+    this.auth.logout();
+    this.router.navigate(['/login']);
   }
 }
