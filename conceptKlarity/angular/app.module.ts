@@ -8,6 +8,12 @@ import { DemoCliComponent } from './demo-cli.component';
 import { BindingDemoComponent } from './binding-demo.component';
 import { TemplateFormComponent } from './template-form.component';
 import { ReactiveFormComponent } from './reactive-form.component';
+import { RouterModule, Routes } from '@angular/router';
+import { AppComponent } from './app.component';
+import { HomeComponent } from './home.component';
+import { DashboardComponent } from './dashboard.component';
+import { DetailsComponent } from './details.component';
+import { UserFormComponent } from './user-form.component';
 
 @NgModule({
   declarations: [
@@ -15,10 +21,26 @@ import { ReactiveFormComponent } from './reactive-form.component';
     DemoCliComponent,
     BindingDemoComponent,
     TemplateFormComponent,
-    ReactiveFormComponent
+    ReactiveFormComponent,
+    AppComponent,
+    HomeComponent,
+    DashboardComponent,
+    DetailsComponent
   ],
-  imports: [BrowserModule, FormsModule, ReactiveFormsModule, HttpClientModule],
+  imports: [
+    BrowserModule,
+    FormsModule,
+    ReactiveFormsModule,
+    HttpClientModule,
+    RouterModule.forRoot([
+      { path: '', component: HomeComponent },
+      { path: 'dashboard', component: DashboardComponent },
+      { path: 'details/:id', component: DetailsComponent },
+      { path: 'user-form', component: UserFormComponent },
+      { path: '**', redirectTo: '' }
+    ])
+  ],
   providers: [],
-  bootstrap: [ProductListComponent]
+  bootstrap: [AppComponent]
 })
 export class AppModule {}
