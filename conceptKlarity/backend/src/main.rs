@@ -1,5 +1,8 @@
-use axum::{extract::{State, Query}, http::StatusCode, response::IntoResponse, routing::{get, post}, Json, Router};
+use axum::{extract::{State, Query, TypedHeader}, headers::authorization::Bearer, http::StatusCode, response::IntoResponse, routing::{get, post}, Json, Router};
 use anyhow::{Context, Result};
+use chrono::{Duration, Utc};
+use headers::Authorization;
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::PgPool;
@@ -31,6 +34,7 @@ struct CreateProduct {
 enum ApiError {
     BadRequest(String),
     NotFound(String),
+    Unauthorized(String),
     Internal(anyhow::Error),
 }
 
@@ -51,6 +55,12 @@ impl IntoResponse for ApiError {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
         }
+    }
+}
+
+impl From<ApiError> for axum::response::Response {
+    fn from(err: ApiError) -> Self {
+        err.into_response()
     }
 }
 
@@ -91,6 +101,56 @@ async fn list_products_db(State(state): State<AppState>, Query(params): Query<Qu
     .map_err(|e| ApiError::Internal(anyhow::anyhow!("db query failed: {}", e)))?;
 
     Ok(Json(rows))
+}
+
+#[derive(Deserialize)]
+struct LoginRequest {
+    username: String,
+    password: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Claims {
+    sub: String,
+    exp: usize,
+}
+
+async fn login(Json(payload): Json<LoginRequest>) -> Result<Json<serde_json::Value>, ApiError> {
+    // demo credentials - replace with real verification in production
+    if payload.username != "admin" || payload.password != "password" {
+        return Err(ApiError::Unauthorized("invalid credentials".into()));
+    }
+
+    let secret = env::var("AUTH_SECRET").unwrap_or_else(|_| "dev-secret-change-me".into());
+    let exp = (Utc::now() + Duration::hours(4)).timestamp() as usize;
+    let claims = Claims { sub: payload.username, exp };
+    let token = encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!("token create failed: {}", e)))?;
+
+    Ok(Json(json!({ "token": token })))
+}
+
+fn verify_token(token: &str) -> Result<Claims, ApiError> {
+    let secret = env::var("AUTH_SECRET").unwrap_or_else(|_| "dev-secret-change-me".into());
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = true;
+    decode::<Claims>(token, &DecodingKey::from_secret(secret.as_bytes()), &validation)
+        .map(|data| data.claims)
+        .map_err(|e| ApiError::Unauthorized(format!("invalid token: {}", e)))
+}
+
+// Protected version of products-db that enforces Authorization: Bearer <token>
+async fn list_products_db_protected(
+    State(state): State<AppState>,
+    Query(params): Query<QueryParams>,
+    auth: Option<TypedHeader<Authorization<Bearer>>>,
+) -> Result<Json<Vec<Product>>, ApiError> {
+    let header = auth.ok_or_else(|| ApiError::Unauthorized("missing authorization header".into()))?;
+    let token = header.0.token();
+    verify_token(token)?;
+
+    // delegate to existing DB-backed implementation
+    list_products_db(State(state), Query(params)).await
 }
 
 async fn create_product(State(state): State<AppState>, Json(payload): Json<CreateProduct>) -> Result<(StatusCode, Json<Product>), ApiError> {
@@ -142,8 +202,9 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/api/auth/login", post(login))
         .route("/products", get(list_products).post(create_product))
-        .route("/products-db", get(list_products_db))
+        .route("/products-db", get(list_products_db_protected))
         .with_state(state)
         .layer(cors);
 
