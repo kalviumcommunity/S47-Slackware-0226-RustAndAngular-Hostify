@@ -1,90 +1,111 @@
-# Forms PR Documentation
+# Rust Data Models — Structs, Enums, and Integration
 
-This PR adds two form examples to the Angular scaffold:
+This document explains how we defined Rust data models (structs and enums) and integrated them into the backend scaffold for the project.
 
-- `TemplateFormComponent` — a template-driven form using `ngModel` and built-in validation attributes.
-- `ReactiveFormComponent` — a reactive form using `FormGroup`, `FormControl`, and `Validators`.
+Overview
 
-Why both?
+- Rust structs model domain entities (like `Product`).
+- Enums model discrete state or typed variants (like `ProductStatus`).
+- We use `serde` to serialize/deserialize models to/from JSON for HTTP handlers.
 
-Template-driven forms are simple and declarative — they work well for straightforward forms and quick prototyping. Reactive forms provide explicit control over the form model, easier unit testing, and better scalability for complex validation logic.
+Files changed / created
 
-Validation implemented
+- `conceptKlarity/rust-backend/src/models/product.rs` — contains the `Product` struct and `ProductStatus` enum, with `serde` derives.
+- `conceptKlarity/rust-backend/src/handlers/items.rs` — constructs and returns `Product` JSON via Actix handlers.
 
-- Required fields: both approaches use `required`.
-- Minimum length: the `name` field enforces `minlength=3` (template) and `Validators.minLength(3)` (reactive).
-- Email format: template uses `type="email"` (Angular validates), reactive uses `Validators.email`.
+Example: `Product` struct and `ProductStatus` enum
 
-Form state and submissions
+```rust
+use serde::{Serialize, Deserialize};
 
-- Template-driven: the component method receives an `NgForm` instance on submit. Access values with `form.value` and validity with `form.valid`.
-- Reactive: the component uses `this.form.value` to access current values and `this.form.valid` to check validity; `valueChanges` and `statusChanges` are observed to react to updates.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum ProductStatus {
+    Available,
+    OutOfStock,
+    Discontinued,
+}
 
-Reusability and design
-
-- Components are self-contained and declared in `AppModule`. They avoid hardcoded logic and expose clear interfaces (form values on submit).
-- Validation rules are defined declaratively (template) or centrally in the `FormGroup` (reactive), making it easy to extract or reuse the control configuration.
-
-How Angular tracks and updates form state
-
-Angular's change detection system runs after DOM events; both template-driven and reactive forms update the underlying model on user input and mark controls as `dirty`, `touched`, and `pristine`. Reactive forms also expose `valueChanges` and `statusChanges` Observables for programmatic observation.
-
-Files added
-
-- `conceptKlarity/angular/template-form.component.*`
-- `conceptKlarity/angular/reactive-form.component.*`
-- `conceptKlarity/documentation.md` (this file)
-
-Service & shared state
-
-- **What I added:** a `StateService` located at `conceptKlarity/angular/services/state.service.ts` that acts as a single source of truth for a shared `Product[]` collection. It exposes a `BehaviorSubject` as `items$` and methods to `setItems`, `addItem`, `updateItem`, and `removeItem`.
-
-- **Why services:** Services centralize shared data and logic so multiple components can access and update the same state without duplicating code or manually passing events/props. This follows Angular's dependency-injection pattern and keeps components focused on presentation.
-
-- **Dependency injection:** components inject `StateService` via their constructor, e.g. `constructor(private state: StateService) {}`. Angular provides a single instance (service is `providedIn: 'root'`) so the state is shared application-wide.
-
-- **How state is shared:** `ProductListComponent` loads items from the backend and calls `state.setItems(data)`. Other components (e.g., `DemoCliComponent`) subscribe to `state.items$` (the observable) and automatically receive updates. This demonstrates the publish/subscribe pattern using RxJS.
-
-- **Edge cases handled:**
-	- Invalid updates: `addItem` validates payloads (non-empty name, non-negative price) and returns `null` for invalid attempts — components should handle this return value.
-	- Empty data state: the `BehaviorSubject` is initialized with an empty array so subscribers always receive a defined array (avoids `null` checks in templates).
-	- API simulation: `simulateApiLoad(shouldFail)` demonstrates how the service can simulate an API error (returns a rejected Promise when `shouldFail` is true) and how callers can handle it.
-
-Routing, Authentication & Guard
-
-- **Routes (simple map):**
-	- `/products` — public, `ProductListComponent` (default redirect)
-	- `/login` — public, `LoginComponent` (used to sign in)
-	- `/dashboard` — protected, `DashboardComponent` (requires authentication via `AuthGuard`)
-
-- **How the guard works:**
-	- `AuthGuard` implements `CanActivate`. Before navigation to a protected route the guard checks `AuthService.isLoggedIn()`.
-	- If authenticated, navigation proceeds. If not, the guard returns a `UrlTree` redirecting to `/login` with a `returnUrl` query parameter so the app can navigate back after successful login.
-
-- **How authentication state is checked:**
-	- `AuthService` stores a token in `localStorage` and exposes a `BehaviorSubject` (`isLoggedIn$`) for reactive subscribers and `isLoggedIn()` for synchronous checks.
-	- Components and the guard use `isLoggedIn()` or subscribe to `isLoggedIn$` to react to changes.
-
-
-
-Run locally
-
-```bash
-cd conceptKlarity/angular
-npm install
-npm start    # or ng serve
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Product {
+    pub id: i32,
+    pub name: String,
+    pub price: f64,
+    pub description: Option<String>,
+    pub status: ProductStatus,
+}
 ```
 
-Run tests:
+Why these derives and attributes
 
-```bash
-ng test
+- `Serialize` / `Deserialize` (from `serde`) allow automatic JSON encoding and decoding in handlers.
+- `Debug` and `Clone` are useful for development and testing.
+- `#[serde(rename_all = "snake_case")]` makes enum variant names map to predictable JSON strings (e.g., `available`).
+
+Integrating into Actix handlers
+
+In `src/handlers/items.rs` we import the model types and return JSON responses directly:
+
+```rust
+use crate::models::product::{Product, ProductStatus};
+use actix_web::{web, HttpResponse, Responder};
+
+pub async fn get_items() -> impl Responder {
+    let items = vec![Product { id: 1, name: "Example".into(), price: 9.99, description: Some("Sample".into()), status: ProductStatus::Available }];
+    HttpResponse::Ok().json(items)
+}
 ```
 
-Build:
+Mapping to the frontend (TypeScript)
 
-```bash
-ng build
+Frontend TypeScript interfaces should mirror the Rust model shape so serialised JSON maps cleanly.
+Example TypeScript model:
+
+```ts
+export type ProductStatus = 'available' | 'out_of_stock' | 'discontinued';
+
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+  description?: string;
+  status: ProductStatus;
+}
 ```
 
-If you want, I can commit these changes to a branch and open the PR, or add an Angular proxy and CORS configuration for backend integration.
+When we return `Product` JSON from Actix, the Angular `HttpClient` can deserialize into `Product` objects if the TypeScript interface matches the JSON shape.
+
+Database & persistence notes
+
+- If using SQLx or another ORM, annotate Rust models for DB mapping (example):
+
+```rust
+#[derive(sqlx::FromRow, Serialize, Deserialize, Debug, Clone)]
+pub struct ProductRow { /* fields matching DB columns */ }
+```
+
+- Convert between DB rows and API DTOs (separate `models::db` vs `models::api` modules) to avoid leaking DB-specific types into API contracts.
+
+Testing and verification
+
+- Start the backend and query the endpoint to verify JSON output:
+
+```bash
+cd conceptKlarity/rust-backend
+cargo run
+
+curl http://localhost:8080/api/items
+```
+
+- Expect JSON where `status` is a string like `"available"` and the structure matches the TypeScript `Product` interface.
+
+Best practices and tips
+
+- Keep API DTOs (what you send over HTTP) separate from internal DB models where useful.
+- Use `serde` attributes to control JSON field names and enum representation.
+- When updating models, update both the Rust DTO and the TypeScript interface so the front-end and back-end remain in sync.
+
+Next steps (optional)
+
+- Add `sqlx::FromRow` derives and implement DB migrations in `rust-backend/migrations/` when moving from in-memory examples to a persistent store.
+- Add unit tests for (de)serialization to ensure enum variants and optional fields behave as expected.
