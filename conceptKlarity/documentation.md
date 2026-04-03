@@ -413,3 +413,80 @@ Notes on error handling
 
 - The `web::Json` extractor rejects invalid JSON or mismatched types with a 400 response by default. For additional validation (e.g., non-negative price) you can add explicit checks in the handler and return `HttpResponse::BadRequest()` when needed.
 
+Type-safe Contracts: Angular ↔ Rust
+----------------------------------
+
+This project includes end-to-end typed request and response models to ensure the frontend and backend agree on data shapes.
+
+- Rust request model: `CreateProductRequest` in `rust-backend/src/models/product.rs`:
+
+```rust
+#[derive(Deserialize, Debug)]
+pub struct CreateProductRequest {
+        pub name: String,
+        pub price: f64,
+        pub description: Option<String>,
+}
+```
+
+- Angular request model: `CreateProductRequest` in `conceptKlarity/angular/src/app/models/product.model.ts`:
+
+```ts
+export interface CreateProductRequest {
+    name: string;
+    price: number;
+    description?: string;
+}
+```
+
+These models match exactly: `name` (string), `price` (number / f64), and `description` (optional string / `Option<String>`). The Angular `createProduct()` method accepts `CreateProductRequest` and sends it as JSON; the Rust handler uses `web::Json<CreateProductRequest>` to deserialize it.
+
+Typed responses
+
+- Rust returns `ProductResponse` (Rust struct) with `Option<String>` for `description` and `ProductStatus` for `status`.
+- Angular defines `Product` with `description?: string` and a union type for `status`:
+
+```ts
+export interface Product {
+    id: number;
+    name: string;
+    price: number;
+    description?: string;
+    status: 'available' | 'out_of_stock' | 'discontinued';
+}
+```
+
+How optional fields are handled
+
+- Rust: `Option<T>` represents nullable/optional fields and Serde will omit or set JSON `null` for missing values.
+- Angular: optional fields are modeled with `?` (e.g., `description?: string`), and `HttpClient` generics handle `null`/`undefined` appropriately when mapping JSON to the TS interface.
+
+Why type-safe contracts matter
+
+- Mismatches are caught early: Rust will reject malformed payloads during deserialization; TypeScript enforces usage of the defined interfaces at compile time in the frontend, preventing accidental use of `any` in API calls.
+- Using typed generics with `HttpClient` (`this.http.post<Product>(...)`) ensures the received JSON is treated as a `Product` at compile time and helps you surface inconsistencies quickly.
+
+How to test locally
+
+1. Start backend (ensure `DATABASE_URL` is set):
+
+```bash
+export DATABASE_URL="postgres://demo:demo@localhost:5432/conceptclarity"
+export JWT_SECRET="your-secret"
+export ADMIN_USER="admin"
+export ADMIN_PASSWORD="password"
+cd conceptKlarity/rust-backend
+cargo run
+```
+
+2. Start Angular dev server:
+
+```bash
+cd conceptKlarity/angular
+npm install
+npm start
+```
+
+3. Perform an end-to-end create from the app UI or via curl using the typed request shape (see earlier curl examples). The backend will return a typed JSON `ProductResponse`. Verify the UI shows the created product and no runtime type errors occur in the console.
+
+
