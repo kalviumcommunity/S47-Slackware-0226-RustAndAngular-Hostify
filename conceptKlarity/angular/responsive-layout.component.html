@@ -1,3 +1,7 @@
 <section class="grid">
+  <div *ngIf="loading">Loading products...</div>
+  <div *ngIf="error" class="error">{{ error }}</div>
+  <div *ngIf="!loading && cards.length === 0">No products found.</div>
+
   <shared-card *ngFor="let c of cards" [title]="c.title" [subtitle]="c.subtitle" [price]="c.price" [added]="c.added" (add)="addToCart(c)"></shared-card>
 </section>

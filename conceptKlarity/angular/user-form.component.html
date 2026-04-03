@@ -1,0 +1,38 @@
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="form">
+  <div class="field">
+    <label>Name</label>
+    <input formControlName="name" />
+    <div class="error" *ngIf="name?.touched && name?.invalid">
+      <div *ngIf="name?.errors?.['required']">Name is required.</div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Email</label>
+    <input formControlName="email" />
+    <div class="error" *ngIf="email?.touched && email?.invalid">
+      <div *ngIf="email?.errors?.['required']">Email is required.</div>
+      <div *ngIf="email?.errors?.['email']">Please enter a valid email address.</div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Password</label>
+    <input type="password" formControlName="password" />
+    <div class="error" *ngIf="password?.touched && password?.invalid">
+      <div *ngIf="password?.errors?.['required']">Password is required.</div>
+      <div *ngIf="password?.errors?.['minlength']">Password must be at least 8 characters.</div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Bio (optional)</label>
+    <textarea formControlName="bio"></textarea>
+  </div>
+
+  <div class="actions">
+    <button type="submit">Submit</button>
+  </div>
+
+  <div class="success" *ngIf="submitted">Form submitted successfully.</div>
+</form>

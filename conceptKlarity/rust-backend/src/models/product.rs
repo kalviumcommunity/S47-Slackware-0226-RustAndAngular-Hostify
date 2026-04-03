@@ -32,7 +32,7 @@ pub struct UpdateProductRequest {
     pub status: Option<ProductStatus>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ProductResponse {
     pub id: i32,
     pub name: String,

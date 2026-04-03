@@ -5,6 +5,7 @@ import { StateService } from './services/state.service';
 import { Subscription, of, Observable } from 'rxjs';
 import { switchMap, tap, catchError } from 'rxjs/operators';
 import { HttpErrorResponse } from '@angular/common/http';
+import { formatHttpError } from './services/api-utils';
 
 @Component({
   selector: 'app-product-list',
@@ -65,14 +66,7 @@ export class ProductListComponent implements OnInit, OnDestroy {
     this.subs.push(s);
   }
 
-  private formatHttpError(err: HttpErrorResponse, fallback: string): string {
-    if (!err) return fallback;
-    if (err.status === 0) return 'Network error — cannot reach server';
-    if (err.status === 401 || err.status === 403) return 'Unauthorized — please login';
-    if (err.status === 400) return 'Invalid request (bad input)';
-    if (err.status >= 500) return 'Server error — try again later';
-    return fallback;
-  }
+  private formatHttpError = formatHttpError;
 
   ngOnDestroy(): void {
     this.subs.forEach(s => s.unsubscribe());

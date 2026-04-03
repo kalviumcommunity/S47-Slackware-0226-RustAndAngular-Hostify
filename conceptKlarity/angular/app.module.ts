@@ -8,6 +8,7 @@ import { DemoCliComponent } from './demo-cli.component';
 import { BindingDemoComponent } from './binding-demo.component';
 import { TemplateFormComponent } from './template-form.component';
 import { ReactiveFormComponent } from './reactive-form.component';
+
 import { LoginComponent } from './login.component';
 import { DashboardComponent } from './dashboard.component';
 import { AppComponent } from './app.component';

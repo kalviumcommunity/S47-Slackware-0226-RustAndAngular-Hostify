@@ -1,6 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from './shared/shared.module';
+import { ProductService } from './product.service';
+import { formatHttpError } from './services/api-utils';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-responsive-layout',
@@ -9,18 +12,32 @@ import { SharedModule } from './shared/shared.module';
   templateUrl: './responsive-layout.component.html',
   styleUrls: ['./responsive-layout.component.css']
 })
-export class ResponsiveLayoutComponent {
-  cards = [
-    { title: 'Wireless Mouse', subtitle: 'Ergonomic', price: 899 },
-    { title: 'Mechanical Keyboard', subtitle: 'RGB, TKL', price: 3499 },
-    { title: 'USB-C Hub', subtitle: '4 ports', price: 1299 },
-    { title: 'Webcam', subtitle: '1080p', price: 2199 },
-    { title: 'Monitor', subtitle: '24" FHD', price: 8999 }
-  ];
+export class ResponsiveLayoutComponent implements OnInit, OnDestroy {
+  cards: any[] = [];
+  loading = false;
+  error = '';
+  page = 1;
+  limit = 6;
+  private sub?: Subscription;
+
+  constructor(private svc: ProductService) {}
+
+  ngOnInit(): void {
+    this.load();
+  }
+
+  load(): void {
+    this.loading = true;
+    this.error = '';
+    this.sub = this.svc.getProductsDb(this.page, this.limit).subscribe({
+      next: (rows) => { this.cards = rows.map(r => ({ ...r, title: r.name, subtitle: r.description || '', price: r.price })); this.loading = false; },
+      error: (err) => { this.error = formatHttpError(err, 'Failed to load products'); this.loading = false; }
+    });
+  }
 
   addToCart(card: any): void {
-    // placeholder interactivity to demonstrate reactive UI
-    // in a real app you'd call a service
     (card as any).added = true;
   }
+
+  ngOnDestroy(): void { this.sub?.unsubscribe(); }
 }
