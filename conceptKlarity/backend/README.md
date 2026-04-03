@@ -56,6 +56,30 @@ Notes
 - Migration is written for PostgreSQL. Adjust types/SQL if you use another DB.
 - The backend currently provides in-memory data by default. To fully switch to DB-backed storage, update the Rust backend to open a `PgPool` and query the `products` table (see `sqlx::query_as!` or `sqlx::query` patterns).
 
+Products DB-backed endpoint
+---------------------------
+
+The backend exposes a DB-backed endpoint that supports pagination and filtering:
+
+- `GET /products-db`
+
+Query parameters:
+- `page` (default 1)
+- `limit` (default 10, max 100)
+- `name` (optional text filter, case-insensitive contains)
+
+Example:
+
+```bash
+curl "http://localhost:8080/products-db?page=2&limit=5&name=mouse"
+```
+
+Implementation notes:
+- Uses `sqlx::PgPool` and a parameterized query with `LIMIT`/`OFFSET` to implement pagination.
+- Uses an `ILIKE '%name%'` filter when `name` is provided.
+- If `DATABASE_URL` is not set the endpoint will respond with a 500-style error (database not configured).
+
+
 
 Health endpoint:
 
