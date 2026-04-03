@@ -1,0 +1,11 @@
+<article class="card">
+  <h3 class="title">{{ title }}</h3>
+  <div class="subtitle">{{ subtitle }}</div>
+  <div class="meta" *ngIf="price !== null">₹{{ price }}</div>
+
+  <div class="card-actions">
+    <button (click)="onAdd()" [disabled]="added">{{ added ? 'In cart' : 'Add to cart' }}</button>
+  </div>
+
+  <div *ngIf="added" class="notice">Added ✓</div>
+</article>

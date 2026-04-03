@@ -1,10 +1,8 @@
 <div class="card">
-  <h4>{{ productName }}</h4>
-  <p class="price">₹{{ price }}</p>
+  <shared-card [title]="productName" [price]="price" [added]="inCart" (add)="addToCart()"></shared-card>
 
   <div class="actions">
-    <button (click)="addToCart()" [disabled]="inCart">{{ inCart ? 'In Cart' : 'Add to Cart' }}</button>
-    <button class="fav" (click)="toggleFavorite()">{{ favorite ? '★' : '☆' }}</button>
+    <shared-button [label]="favorite ? '★' : '☆'" (clicked)="toggleFavorite()"></shared-button>
   </div>
 
   <p *ngIf="inCart" class="added">Added to cart!</p>
