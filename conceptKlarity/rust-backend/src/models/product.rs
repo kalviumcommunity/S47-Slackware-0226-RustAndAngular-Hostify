@@ -24,7 +24,7 @@ pub struct CreateProductRequest {
     pub description: Option<String>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, sqlx::FromRow)]
 pub struct ProductResponse {
     pub id: i32,
     pub name: String,
