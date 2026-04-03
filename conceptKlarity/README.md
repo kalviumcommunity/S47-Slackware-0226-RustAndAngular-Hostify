@@ -66,6 +66,56 @@ If you want, I can:
 - Add a small Angular proxy config to forward `/api` calls to the backend during `ng serve`
 - Add CORS config to the Rust server
 
+**PR: Angular CLI demo component & build/test tasks**
+
+- **What I added (component):**
+  - A demo CLI component was created at `conceptKlarity/angular/demo-cli.component.*` to simulate the output of `ng generate component demo-cli`.
+  - The component is declared in `app.module.ts` and inserted into the `product-list` template so it renders on the main page.
+
+- **Commands you must run locally for PR evidence:**
+
+  1. Generate component via CLI (optional if already included):
+
+  ```bash
+  # run in conceptKlarity/angular
+  ng generate component demo-cli
+  ```
+
+  2. Serve the app and capture terminal output (paste into PR):
+
+  ```bash
+  npm start       # or ng serve
+  ```
+
+  - Note the URL `http://localhost:4200` and include the terminal lines showing compilation succeeded.
+  - Hot-reload: when editing component HTML/TS/CSS files, `ng serve` recompiles and updates the browser automatically.
+
+  3. Build the app and capture the `ng build` output:
+
+  ```bash
+  ng build
+  ```
+
+  - The `dist/` folder contains production-ready static files (HTML, JS bundles, assets) that you can deploy to a static server.
+  - Include the final build lines in the PR showing the build completed without errors.
+  - Difference: `ng serve` runs a dev server with in-memory compilation and hot reload; `ng build` produces static files in `dist/` for deployment.
+
+  4. Run tests and capture output (Karma + Jasmine by default):
+
+  ```bash
+  ng test
+  ```
+
+  - Include the test runner output or screenshot in the PR. Angular defaults to Karma + Jasmine; `ng test` typically runs in watch mode and opens a browser to run specs.
+
+- **About this environment:**
+  I created the demo component files and a basic unit spec in this repo so you can open and run the exact commands above locally. I could not run `ng`/`npm` commands in this environment (no Node/Angular CLI available here), so please run the listed commands locally and paste terminal outputs/screenshots into the PR description.
+
+- **AI feedback step:**
+  - Before final submission run a CodiumAI review on your PR by commenting: `@CodiumAI-Agent /review` on the PR page.
+  - Apply relevant suggestions and commit the changes so the PR diff shows the improvements.
+
+
 **PR: TypeScript Model & Typed Service**
 
 - **What I added:**
