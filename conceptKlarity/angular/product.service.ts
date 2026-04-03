@@ -1,20 +1,28 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Product } from './src/app/models/product.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
-  private readonly base = '/api/products';
+  // Point to the Rust backend during development
+  private readonly base = 'http://localhost:8080';
+
   constructor(private readonly http: HttpClient) {}
 
-  // Returns a strongly-typed Observable of Product[] (demonstrates generics)
   getProducts(): Observable<Product[]> {
-    return this.http.get<Product[]>(this.base);
+    return this.http.get<Product[]>(`${this.base}/products`);
   }
 
-  // Accepts a typed payload and returns the created Product
   createProduct(payload: { name: string; price: number; description?: string }): Observable<Product> {
-    return this.http.post<Product>(this.base, payload);
+    const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+    return this.http.post<Product>(`${this.base}/products`, payload, { headers });
+  }
+
+  // DB-backed listing with pagination/filtering
+  getProductsDb(page = 1, limit = 10, name?: string): Observable<Product[]> {
+    const params: any = { page: String(page), limit: String(limit) };
+    if (name) params.name = name;
+    return this.http.get<Product[]>(`${this.base}/products-db`, { params });
   }
 }
